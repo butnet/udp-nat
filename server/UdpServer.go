@@ -14,24 +14,36 @@ type clientInfo struct {
 	addr     *net.UDPAddr
 }
 
+//CheckUserAndToken 校验用户
 type CheckUserAndToken func(data protocl.ClientData) bool
+//ProcessClientData 处理客户端消息
 type ProcessClientData func(server *UdpServer, data protocl.ClientData, remoteAddr *net.UDPAddr)
 
+//UdpServer UdpNat服务
 type UdpServer struct {
+	//消息缓冲区对象池
 	buffPool          *sync.Pool
+	//当前UDP监听
 	conn              *net.UDPConn
+	//处理消息的协程个数
 	workCount         int
+	//待处理的消息管道
 	messages          chan *protocl.Message
+	//用户校验
 	checkUserAndToken CheckUserAndToken
+	//当前注册的客户端信息
 	clients           map[string]*clientInfo
+	//对clients的读写锁
 	lock              *sync.RWMutex
+	//当前服务协和
 	wait              *sync.WaitGroup
+	//当前服务支持的消息
 	actions           map[protocl.ActionCode]ProcessClientData
 	//客户端信息超时时间，单位：纳秒
 	timeout int64
 }
 
-// NewUdpServer
+// NewUdpServer 创建服务
 func NewUdpServer(workCount int, timeout int64, checkUserAndToken CheckUserAndToken) *UdpServer {
 	pool := &sync.Pool{
 		New: func() interface{} {
@@ -55,6 +67,7 @@ func NewUdpServer(workCount int, timeout int64, checkUserAndToken CheckUserAndTo
 	}
 }
 
+//ShutdownAndWait 关闭服务并待所有协程处理结束
 func (s *UdpServer) ShutdownAndWait() {
 	err := s.conn.Close()
 	if err != nil {
@@ -63,6 +76,7 @@ func (s *UdpServer) ShutdownAndWait() {
 	s.wait.Wait()
 }
 
+//ListenAndServe 监听端口并开始服务
 func (s *UdpServer) ListenAndServe(ctx context.Context, addr string) error {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -87,6 +101,7 @@ func (s *UdpServer) ListenAndServe(ctx context.Context, addr string) error {
 		}(i)
 	}
 
+	//清理过期的clientId
 	s.wait.Add(1)
 	go func() {
 		defer s.wait.Done()
@@ -112,6 +127,7 @@ func (s *UdpServer) ListenAndServe(ctx context.Context, addr string) error {
 	return err
 }
 
+//serve 接收UDP消息，发送给管道
 func (s *UdpServer) serve(ctx context.Context) error {
 	log.Println("master: 开始接收消息")
 	defer log.Println("master: 接收消息结束")
@@ -150,12 +166,14 @@ func (s *UdpServer) serve(ctx context.Context) error {
 	}
 }
 
+//poolItemFinish 消息处理结束后，将消息缓冲区放回对象池
 func (s *UdpServer) poolItemFinish(buff *[protocl.MaxUdpDataSize]byte) func() {
 	return func() {
 		s.buffPool.Put(buff)
 	}
 }
 
+//cleanTimeClient 清理过期的clientId
 func (s *UdpServer) cleanTimeClient() {
 	t := time.Now().UnixNano()
 	to := s.timeout
@@ -169,6 +187,7 @@ func (s *UdpServer) cleanTimeClient() {
 	s.lock.Unlock()
 }
 
+//worker 负责接收管道消息
 func (s *UdpServer) worker(ctx context.Context, workId int) {
 	log.Println("worker:", workId, "start")
 	defer log.Println("worker:", workId, "finish")
@@ -184,7 +203,7 @@ func (s *UdpServer) worker(ctx context.Context, workId int) {
 
 func (s *UdpServer) processMessage(msg *protocl.Message) {
 	defer msg.Finish()
-
+	//检查消息签名
 	if !protocl.CheckSign(msg.Data) {
 		log.Println("签名错误")
 		s.sendSignError(msg.RemoteAdd)
@@ -192,12 +211,14 @@ func (s *UdpServer) processMessage(msg *protocl.Message) {
 	}
 
 	clientData := protocl.ClientData(msg.Data)
+	//校验用户是否允许
 	if s.checkUserAndToken != nil && !s.checkUserAndToken(clientData) {
 		log.Println("用户名或密码错误")
 		s.sendUserOrTokenError(msg.RemoteAdd)
 		return
 	}
 
+	//请求命令
 	actionCode := clientData.GetActionCode()
 	action, ok := s.actions[actionCode]
 	if !ok {
@@ -208,6 +229,7 @@ func (s *UdpServer) processMessage(msg *protocl.Message) {
 	action(s, clientData, msg.RemoteAdd)
 }
 
+//sendSignError 发送签名错误消息
 func (s *UdpServer) sendSignError(addr *net.UDPAddr) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -217,6 +239,7 @@ func (s *UdpServer) sendSignError(addr *net.UDPAddr) {
 	s.sendData(data[:n], addr)
 }
 
+//sendUserOrTokenError 发送用户名或密码错误消息
 func (s *UdpServer) sendUserOrTokenError(addr *net.UDPAddr) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -226,6 +249,7 @@ func (s *UdpServer) sendUserOrTokenError(addr *net.UDPAddr) {
 	s.sendData(data[:n], addr)
 }
 
+//sendPackageError 发送数据包格式错误
 func (s *UdpServer) sendPackageError(addr *net.UDPAddr, msg string) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -235,6 +259,7 @@ func (s *UdpServer) sendPackageError(addr *net.UDPAddr, msg string) {
 	s.sendData(data[:n], addr)
 }
 
+//sendNotFoundClientError 发送ClientId未找到
 func (s *UdpServer) sendNotFoundClientError(addr *net.UDPAddr, queryClientId string) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -244,6 +269,7 @@ func (s *UdpServer) sendNotFoundClientError(addr *net.UDPAddr, queryClientId str
 	s.sendData(data[:n], addr)
 }
 
+//sendQueryResult 发送查询结果
 func (s *UdpServer) sendQueryResult(addr *net.UDPAddr, queryClientId string, queryAdd *net.UDPAddr) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -252,6 +278,7 @@ func (s *UdpServer) sendQueryResult(addr *net.UDPAddr, queryClientId string, que
 	s.sendData(data[:n], addr)
 }
 
+//sendConnectResult 发送连接结果
 func (s *UdpServer) sendConnectResult(clientId string, addr *net.UDPAddr, connectClientId string, connectAdd *net.UDPAddr, socketId int) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -265,6 +292,7 @@ func (s *UdpServer) sendConnectResult(clientId string, addr *net.UDPAddr, connec
 	s.sendData(data[:n], connectAdd)
 }
 
+//sendRegisteredSuccess 发送注册成功
 func (s *UdpServer) sendRegisteredSuccess(addr *net.UDPAddr) {
 	buff := s.buffPool.Get().(*[protocl.MaxUdpDataSize]byte)
 	defer s.buffPool.Put(buff)
@@ -274,6 +302,7 @@ func (s *UdpServer) sendRegisteredSuccess(addr *net.UDPAddr) {
 	s.sendData(data[:n], addr)
 }
 
+//sendData 发送UDP底层数据报文
 func (s *UdpServer) sendData(bytes []byte, addr *net.UDPAddr) {
 	n, err := s.conn.WriteToUDP(bytes, addr)
 	if err != nil {
@@ -284,6 +313,7 @@ func (s *UdpServer) sendData(bytes []byte, addr *net.UDPAddr) {
 	}
 }
 
+//processRegistered 处理注册请求
 func processRegistered(s *UdpServer, data protocl.ClientData, remoteAddr *net.UDPAddr) {
 	clientId := data.GetClientId()
 	if clientId == "" {

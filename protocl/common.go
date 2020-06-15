@@ -10,13 +10,14 @@ import (
 	"time"
 )
 
+//init 初始化默认的clientId
 func init() {
-	rand.NewSource(time.Now().UnixNano())
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	clientIdLen := 16
 	clientIdData := make([]byte, 16)
 	for i := 0; i < clientIdLen; i++ {
-		v := rand.Intn(26*2 + 10)
+		v := r.Intn(26*2 + 10)
 		switch {
 		case v < 26:
 			clientIdData[i] = byte('a' + v)
@@ -29,27 +30,32 @@ func init() {
 	clientId = string(clientIdData[:])
 }
 
+//Message 消息
 type Message struct {
+	//远端地址
 	RemoteAdd *net.UDPAddr
+	//数据
 	Data      []byte
+	//消息处理完成后，调用
 	Finish    func()
 }
 
+//MaxUdpDataSize UDP最大消息长度
 const MaxUdpDataSize = 65507
 
 //ActionCode 请求码
 type ActionCode byte
 
 const (
-	//不支持的命令
+	//ActionNotSupport 不支持的命令
 	ActionNotSupport ActionCode = iota
-	//注册
+	//ActionRegedit 注册
 	ActionRegedit
-	//签名错误
+	//ActionSignError 签名错误
 	ActionSignError
-	//用户名或密码错误
+	//ActionUserOrTokenError 用户名或密码错误
 	ActionUserOrTokenError
-	//解析包错误
+	//ActionPackageError 解析包错误
 	ActionPackageError
 	//ActionQueryByClientId 查询ClientId的地址和端口
 	ActionQueryByClientId
@@ -61,8 +67,10 @@ const (
 	ActionConnectByClientId
 )
 
+//默认签名
 var signSalt = "butnet"
 
+//SetSignSalt 设置签名串
 func SetSignSalt(salt string) {
 	if len(salt) > md5.Size {
 		panic(fmt.Sprintf("签名字符串不能超过: %d 字节", md5.Size))
@@ -70,6 +78,7 @@ func SetSignSalt(salt string) {
 	signSalt = salt
 }
 
+//获取当前签名串
 func GetSignSalt() string {
 	return signSalt
 }

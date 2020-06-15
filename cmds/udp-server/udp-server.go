@@ -42,12 +42,11 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	addr := fmt.Sprintf(":%d", port)
 	server := server.NewUdpServer(workCount, timeout * int64(time.Second), genCheckUserAndToken(users))
 
 	go func() {
 		defer cancel()
-		err := server.ListenAndServe(ctx, addr)
+		err := server.ListenAndServe(ctx, fmt.Sprintf(":%d", port))
 		if err != nil {
 			log.Println("服务结束:", err)
 		}

@@ -9,6 +9,7 @@ import (
 	"os"
 )
 
+//ParseUserList 解析用户配置文件
 func ParseUserList(userConfig string) (map[string]string, error) {
 	file, err := os.Open(userConfig)
 	if err != nil {

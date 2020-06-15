@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/butnet/udp-nat/protocl"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/butnet/udp-nat/protocl"
 )
 
 type ProcessServerData func(server *UdpClient, data protocl.ServerData)
@@ -110,7 +111,7 @@ func (s *UdpClient) Regedit(ctx context.Context) {
 				return
 			}
 			s.sendData(data, s.serverAddr)
-			t.Reset(time.Second * 5)
+			t.Reset(time.Second * 15)
 		}
 	}()
 }
@@ -210,7 +211,7 @@ func (s *UdpClient) processMessage(msg *protocl.Message) {
 	}
 }
 
-func (s *UdpClient) sendData(data [] byte, addr *net.UDPAddr) error {
+func (s *UdpClient) sendData(data []byte, addr *net.UDPAddr) error {
 	n, err := s.conn.WriteToUDP(data, addr)
 	if err != nil {
 		log.Println("发送数据包失败:", err)
