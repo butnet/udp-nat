@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/butnet/udp-nat/client"
-	"github.com/butnet/udp-nat/protocl"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/butnet/udp-nat/client"
+	"github.com/butnet/udp-nat/protocl"
 )
 
 var host string
@@ -66,6 +67,8 @@ func main() {
 	}
 	defer udpClient.ShutdownAndWait()
 
+	log.Println("当前clientId:", protocl.GetClientId())
+
 	//注册心跳
 	udpClient.Regedit(ctx)
 	//监听服务
@@ -80,6 +83,7 @@ func main() {
 	}
 
 	if toClientId != "" {
+		// udpClient.SendQueryRequest(toClientId)
 		udpClient.SendConnectRequest(toClientId)
 	}
 

@@ -203,7 +203,7 @@ func (s *UdpClient) processMessage(msg *protocl.Message) {
 		actionCode := cd.GetActionCode()
 		action, ok := s.clientActions[actionCode]
 		if !ok {
-			log.Println("不支持的客户端请求")
+			log.Println("不支持的客户端请求:", actionCode)
 			return
 		}
 		log.Println("处理客户端消息:", msg.RemoteAdd, actionCode)
@@ -269,7 +269,9 @@ func (s *UdpClient) SendConnectClientRequest(toClientId string, addr *net.UDPAdd
 
 	n := protocl.FillConnectClientIdRequest(cd, toClientId, socketId)
 	for i := 0; i < 100; i++ {
+		log.Println("发送连接请求:", toClientId, socketId, addr)
 		s.sendData(cd[:n], addr)
+		time.Sleep(time.Millisecond * 100)
 	}
 }
 
