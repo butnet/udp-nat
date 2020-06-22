@@ -20,6 +20,7 @@ var udpPort int
 var proxyPort int
 var tcpPort int
 var workCount int
+var testSymmetricNat int
 var username string
 var password string
 var clientId string
@@ -33,6 +34,7 @@ func init() {
 	flag.IntVar(&proxyPort, "pport", 0, "代理本地TCP端口")
 	flag.IntVar(&tcpPort, "tport", 0, "本地TCP端口")
 	flag.IntVar(&workCount, "workCount", 10, "处理消息的协程数")
+	flag.IntVar(&testSymmetricNat, "testSymmetricNat", 100, "探测 Symmetric Nat 类型次数")
 	flag.StringVar(&clientId, "clientId", "", "ClientId")
 	flag.StringVar(&toClientId, "toClientId", "", "连接的目标clientId")
 	flag.StringVar(&username, "username", "", "用户名")
@@ -60,7 +62,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	udpClient := client.New(cancel, raddr, username, password, workCount)
+	udpClient := client.New(cancel, raddr, username, password, workCount, testSymmetricNat)
 	err = udpClient.Listen(fmt.Sprintf(":%d", udpPort))
 	if err != nil {
 		log.Println("监听UDP端口:", udpPort, err)

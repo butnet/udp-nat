@@ -17,37 +17,40 @@ type ProcessServerData func(server *UdpClient, data protocl.ServerData)
 type ProcessClientData func(server *UdpClient, data protocl.ClientData, remoteAddr *net.UDPAddr)
 
 type UdpClient struct {
-	serverAddr    *net.UDPAddr
-	username      string
-	password      string
-	buffPool      *sync.Pool
-	conn          *net.UDPConn
-	workCount     int
-	messages      chan *protocl.Message
-	serverActions map[protocl.ActionCode]ProcessServerData
-	clientActions map[protocl.ActionCode]ProcessClientData
-	wait          *sync.WaitGroup
-	cancelFunc    context.CancelFunc
+	serverAddr            *net.UDPAddr
+	username              string
+	password              string
+	buffPool              *sync.Pool
+	conn                  *net.UDPConn
+	workCount             int
+	messages              chan *protocl.Message
+	serverActions         map[protocl.ActionCode]ProcessServerData
+	clientActions         map[protocl.ActionCode]ProcessClientData
+	clientInfo            map[string]*net.UDPAddr
+	wait                  *sync.WaitGroup
+	cancelFunc            context.CancelFunc
+	testSymmetricNatCount int
 
 	socketId   int
 	socketLock *sync.Mutex
 }
 
 // New
-func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, password string, workCount int) *UdpClient {
+func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, password string, workCount int, testSymmetricNatCount int) *UdpClient {
 	pool := &sync.Pool{
 		New: func() interface{} {
 			return &[protocl.MaxUdpDataSize]byte{}
 		},
 	}
 	return &UdpClient{
-		cancelFunc: cancelFunc,
-		serverAddr: serverAddr,
-		username:   username,
-		password:   password,
-		buffPool:   pool,
-		workCount:  workCount,
-		messages:   make(chan *protocl.Message, 100),
+		cancelFunc:            cancelFunc,
+		serverAddr:            serverAddr,
+		username:              username,
+		password:              password,
+		buffPool:              pool,
+		workCount:             workCount,
+		messages:              make(chan *protocl.Message, 100),
+		testSymmetricNatCount: testSymmetricNatCount,
 		serverActions: map[protocl.ActionCode]ProcessServerData{
 			protocl.ActionUserOrTokenError:      processUserOrTokenError,
 			protocl.ActionPackageError:          processPackageError,
@@ -268,7 +271,10 @@ func (s *UdpClient) SendConnectClientRequest(toClientId string, addr *net.UDPAdd
 	s.initClientData(cd)
 
 	n := protocl.FillConnectClientIdRequest(cd, toClientId, socketId)
-	for i := 0; i < 100; i++ {
+	port := addr.Port
+	//Symmetric NAT 探测
+	for i := 0; i < s.testSymmetricNatCount; i++ {
+		addr.Port = port + i
 		log.Println("发送连接请求:", toClientId, socketId, addr)
 		s.sendData(cd[:n], addr)
 		time.Sleep(time.Millisecond * 100)
@@ -324,5 +330,9 @@ func processClientConnectByClientId(server *UdpClient, data protocl.ClientData, 
 		log.Println("客户端连接请求clientId不匹配:", connClientId, protocl.GetClientId())
 		return
 	}
+
+	server.socketLock.Lock()
+	defer server.socketLock.Unlock()
 	log.Println("收到来至的NAT连接请求:", data.GetClientId(), remoteAddr, "socketId:", req.GetSocketId())
+	server.clientInfo[connClientId] = remoteAddr
 }
