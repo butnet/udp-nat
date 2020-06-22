@@ -277,7 +277,6 @@ func (s *UdpClient) SendConnectClientRequest(toClientId string, addr *net.UDPAdd
 		addr.Port = port + i
 		log.Println("发送连接请求:", toClientId, socketId, addr)
 		s.sendData(cd[:n], addr)
-		time.Sleep(time.Millisecond * 100)
 	}
 }
 
