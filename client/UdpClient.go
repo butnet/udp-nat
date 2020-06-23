@@ -30,13 +30,14 @@ type UdpClient struct {
 	wait                  *sync.WaitGroup
 	cancelFunc            context.CancelFunc
 	testSymmetricNatCount int
+	heartIntervalSecond   time.Duration
 
 	socketId   int
 	socketLock *sync.Mutex
 }
 
 // New
-func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, password string, workCount int, testSymmetricNatCount int) *UdpClient {
+func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, password string, workCount int, testSymmetricNatCount int, heartIntervalSecond int) *UdpClient {
 	pool := &sync.Pool{
 		New: func() interface{} {
 			return &[protocl.MaxUdpDataSize]byte{}
@@ -51,6 +52,7 @@ func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, passw
 		workCount:             workCount,
 		messages:              make(chan *protocl.Message, 100),
 		testSymmetricNatCount: testSymmetricNatCount,
+		heartIntervalSecond:   time.Duration(heartIntervalSecond) * time.Second,
 		serverActions: map[protocl.ActionCode]ProcessServerData{
 			protocl.ActionUserOrTokenError:      processUserOrTokenError,
 			protocl.ActionPackageError:          processPackageError,
@@ -114,7 +116,7 @@ func (s *UdpClient) Regedit(ctx context.Context) {
 				return
 			}
 			s.sendData(data, s.serverAddr)
-			t.Reset(time.Second * 15)
+			t.Reset(s.heartIntervalSecond)
 		}
 	}()
 }
@@ -272,11 +274,16 @@ func (s *UdpClient) SendConnectClientRequest(toClientId string, addr *net.UDPAdd
 
 	n := protocl.FillConnectClientIdRequest(cd, toClientId, socketId)
 	port := addr.Port
-	//Symmetric NAT 探测
-	for i := 0; i < s.testSymmetricNatCount; i++ {
-		addr.Port = port + i
-		log.Println("发送连接请求:", toClientId, socketId, addr)
-		s.sendData(cd[:n], addr)
+	//每个端口探测两次，第一次NAT设备可能拒绝
+	for j := 0; j < 2; j++ {
+		//Symmetric NAT 探测
+		for i := 0; i < s.testSymmetricNatCount; i++ {
+			addr.Port = port + i
+			log.Println("发送连接请求:", toClientId, socketId, addr)
+			s.sendData(cd[:n], addr)
+		}
+		//中间延迟3秒
+		time.Sleep(time.Second * 3)
 	}
 }
 

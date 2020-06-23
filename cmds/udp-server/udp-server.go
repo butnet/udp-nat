@@ -5,13 +5,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/butnet/udp-nat/protocl"
-	"github.com/butnet/udp-nat/server"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/butnet/udp-nat/protocl"
+	"github.com/butnet/udp-nat/server"
 )
 
 var port int
@@ -23,7 +24,7 @@ var userConfigPath string
 func init() {
 	flag.IntVar(&port, "port", 8520, "监听端口")
 	flag.IntVar(&workCount, "workCount", 10, "工作协程数")
-	flag.Int64Var(&timeout, "timeout", 30, "客户端超时时间，单位：秒")
+	flag.Int64Var(&timeout, "timeout", 90, "客户端超时时间，单位：秒")
 	flag.StringVar(&salt, "salt", "", "签名字符串")
 	flag.StringVar(&userConfigPath, "userConfig", "user.conf", "用户名密码配置")
 }
@@ -42,7 +43,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	server := server.NewUdpServer(workCount, timeout * int64(time.Second), genCheckUserAndToken(users))
+	server := server.NewUdpServer(workCount, timeout*int64(time.Second), genCheckUserAndToken(users))
 
 	go func() {
 		defer cancel()

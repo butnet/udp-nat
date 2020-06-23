@@ -21,6 +21,7 @@ var proxyPort int
 var tcpPort int
 var workCount int
 var testSymmetricNat int
+var heartIntervalSecond int
 var username string
 var password string
 var clientId string
@@ -40,6 +41,7 @@ func init() {
 	flag.StringVar(&username, "username", "", "用户名")
 	flag.StringVar(&password, "password", "", "密码")
 	flag.StringVar(&salt, "salt", "", "签名字符串")
+	flag.IntVar(&heartIntervalSecond, "haertInterval", 60, "心跳间隔时间（单位：秒）")
 }
 
 func main() {
@@ -62,10 +64,11 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	udpClient := client.New(cancel, raddr, username, password, workCount, testSymmetricNat)
+	udpClient := client.New(cancel, raddr, username, password, workCount, testSymmetricNat, heartIntervalSecond)
 	err = udpClient.Listen(fmt.Sprintf(":%d", udpPort))
 	if err != nil {
 		log.Println("监听UDP端口:", udpPort, err)
+		return
 	}
 	defer udpClient.ShutdownAndWait()
 
