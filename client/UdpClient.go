@@ -274,8 +274,8 @@ func (s *UdpClient) SendConnectClientRequest(toClientId string, addr *net.UDPAdd
 
 	n := protocl.FillConnectClientIdRequest(cd, toClientId, socketId)
 	port := addr.Port
-	//每个端口探测两次，第一次NAT设备可能拒绝
-	for j := 0; j < 2; j++ {
+	//每个端口探测4次，消息可能被NAT设备拒绝
+	for j := 0; j < 4; j++ {
 		//Symmetric NAT 探测
 		for i := 0; i < s.testSymmetricNatCount; i++ {
 			addr.Port = port + i
