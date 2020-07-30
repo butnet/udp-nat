@@ -64,6 +64,7 @@ func New(cancelFunc context.CancelFunc, serverAddr *net.UDPAddr, username, passw
 		clientActions: map[protocl.ActionCode]ProcessClientData{
 			protocl.ActionConnectByClientId: processClientConnectByClientId,
 		},
+		clientInfo: make(map[string]*net.UDPAddr),
 		wait:       &sync.WaitGroup{},
 		socketLock: &sync.Mutex{},
 	}
